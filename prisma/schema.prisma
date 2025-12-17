@@ -1,0 +1,141 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model with authentication and subscription info
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Subscription details
+  subscriptionPlan  SubscriptionPlan @default(FREE)
+  subscriptionStart DateTime         @default(now())
+  subscriptionEnd   DateTime?
+  scansUsedThisMonth Int             @default(0)
+  scansResetDate    DateTime         @default(now())
+  
+  // Relations
+  resumes       Resume[]
+  atsScores     ATSScore[]
+  refreshTokens RefreshToken[]
+  
+  @@index([email])
+}
+
+// Refresh token for JWT rotation
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+}
+
+// Resume uploaded by user
+model Resume {
+  id          String   @id @default(cuid())
+  userId      String
+  fileName    String
+  fileType    String
+  fileSize    Int
+  content     String   @db.Text
+  
+  // Parsed data
+  parsedData  Json?
+  skills      String[]
+  experience  String[]
+  education   String[]
+  projects    String[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  atsScores ATSScore[]
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Job description for ATS matching
+model JobDescription {
+  id              String   @id @default(cuid())
+  title           String
+  company         String?
+  description     String   @db.Text
+  
+  // Extracted requirements
+  requiredSkills  String[]
+  preferredSkills String[]
+  keywords        String[]
+  experience      String?
+  
+  createdAt       DateTime @default(now())
+  
+  atsScores       ATSScore[]
+  
+  @@index([createdAt])
+}
+
+// ATS Score result
+model ATSScore {
+  id                String   @id @default(cuid())
+  userId            String
+  resumeId          String
+  jobDescriptionId  String
+  
+  // Overall score (0-100)
+  overallScore      Float
+  
+  // Component scores
+  skillsScore       Float
+  experienceScore   Float
+  keywordScore      Float
+  formattingScore   Float
+  
+  // Detailed analysis
+  matchedSkills     String[]
+  missingSkills     String[]
+  matchedKeywords   String[]
+  missingKeywords   String[]
+  
+  // AI-generated insights
+  strengthsAnalysis Json?
+  weaknessesAnalysis Json?
+  suggestions       String[]
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume         Resume         @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobDescription JobDescription @relation(fields: [jobDescriptionId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([resumeId])
+  @@index([createdAt])
+}
+
+// Subscription plans enum
+enum SubscriptionPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
